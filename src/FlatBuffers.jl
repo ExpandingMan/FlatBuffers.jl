@@ -1,5 +1,7 @@
 module FlatBuffers
 
+using Debugger
+
 # utils
 """
 serialize(stream::IO, value::T) where {T}
@@ -19,7 +21,7 @@ end
 
 struct UndefinedType end
 const Undefined = UndefinedType()
-getfieldvalue(obj::T, i) where {T} = isdefined(obj, i) ? getfield(obj, i) : Undefined
+getfieldvalue(obj::T, i) where {T} = isdefined(obj, i) ? getfield(obj, i) : undef
 getprevfieldvalue(obj::T, i) where {T} = i == 1 ? missing : getfieldvalue(obj, i - 1)
 
 """
@@ -547,29 +549,21 @@ function buildbuffer!(b::Builder{T1}, arg::T, prev=nothing) where {T1<:Any, T<:A
         numfields = length(T.types)
         # early exit for empty objects
         if numfields == 0
-            startobject(b, 0)
+            startobject!(b, 0)
             return endobject(b)
         end
         os = Int[]
-        isdefault = falses(numfields)
         for i = 1:numfields
             push!(os, getoffset(b, getfieldvalue(arg, i), getprevfieldvalue(arg, i)))
         end
-        # all nested have been written, with offsets in `os[]`
-        # don't use slots for the last N members if they are all default
-        # also leave slots for deprecated fields
-        i = numfields
-        isdefault = getfieldvalue(arg, i) == default(T, i)
-        while isdefault && i > 0
-            i -= 1
-            isdefault = getfieldvalue(arg, i) == default(T, i)
-        end
         soff = slot_offsets(T)
-        numslots = div(soff[i] - 4, 2) + 1
-        startobject(b, numslots)
+        numslots = div(soff[numfields] - 4, 2) + 1
+        startobject!(b, numslots)
+        @bp
         i = 1
         field = 1
-        while i <= numslots
+        while i ≤ numslots
+            @bp
             # leave holes for deprecated fields
             j = 2
             start = field == 1 ? soff[1] : soff[field - 1]

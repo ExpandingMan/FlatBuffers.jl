@@ -99,7 +99,7 @@ function finishedbytes(b::Builder)
 	return b.bytes[b.head+1:end]
 end
 
-function startobject(b::Builder, numslots)
+function startobject!(b::Builder, numslots)
 	assertnotnested(b)
 	b.nested = true
 	b.vtable = zeros(Int, numslots)
