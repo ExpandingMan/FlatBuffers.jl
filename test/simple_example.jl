@@ -1,5 +1,4 @@
 using FlatBuffers; const FB = FlatBuffers
-using FlatBuffers.Parameters
 using BenchmarkTools
 
 #=simple_example
@@ -8,23 +7,11 @@ This is a simple table example which was provided
 Note that some stuff in that pages seems likely deprecated, but the main example should still be correct.
 ========================================================================================================#
 
-# TODO need a nice macro for defaults
-mutable struct FooBar
-    meal::Int8
-    density::Int64
-    say::String
-    height::Int16
-end
-function FB.default(::Type{FooBar}, i::Integer)
-    if i == 1
-        Int8(-1)
-    elseif i == 2
-        Int64(0)
-    elseif i == 3
-        ""
-    elseif i == 4
-        Int16(0)
-    end
+@fbtable mutable struct FooBar
+    meal::Int8 = -1
+    density::Int64 = 0
+    say::String = ""
+    height::Int16 = 0
 end
 
 
@@ -42,7 +29,7 @@ buffer = [# header
           0x2a;                    # 8-bit FooBar.meal
           0x00;                    # 8-bit padding
           0xc0; 0xe0;              # 16-bit FooBar.height
-          
+
           fill(0x00, Int(0x0120) - Int(0x010c));  # empty
 
           # vtable @ 0x0120
