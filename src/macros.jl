@@ -43,6 +43,17 @@ function _defaultsdef(name, fields, defaults)
     end
 end
 
+function _defaultconstructor(name, fields, defaults)
+    defs = map(fields) do (ϕ, T)
+        ϕq = Meta.quot(ϕ)
+        d = get(defaults, ϕ, :(FlatBuffers.default($T)))
+        :(get(kwargs, $ϕq, $d))
+    end
+    :($name(;kwargs...) = $name($(defs...)))
+end
+
+# TODO need to properly handle unions in structs with union type field
+
 function typedec(block)
     if !(@capture(block, struct head_; body_ end) || @capture(block, mutable struct head_; body_ end))
         throw(ArgumentError("could not parse $block as a FlatBuffers struct"))
@@ -52,14 +63,32 @@ function typedec(block)
     defaults = Dict{Symbol,Any}()
     newbody = prewalk(ex -> _parsefield!(fields, defaults, ex), body)
     defs = _defaultsdef(name, fields, defaults)
+    defconst = _defaultconstructor(name, fields, defaults)
     esc(quote
         struct $head
             $newbody
         end
         $defs
         # TODO the below doesn't work for subtypes yet
-        # TODO also want more constructors
-        $name() = $name((FlatBuffers.default($name, i) for i ∈ 1:length(fieldtypes($name)))...)
+        $defconst
+    end)
+end
+
+
+macro fbunion(name, types)
+    if !@capture(types, {T__})
+        throw(ArgumentError("@fbunion: types must be specified in `{ … }`"))
+    end
+    if :Nothing ∈ T
+        throw(ArgumentError("@fbunion: `Nothing` can not be specified in the flatbuffers union "*
+                            "(it will be added automatically)"))
+    end
+    pushfirst!(T, :Nothing)
+    esc(quote
+        const $name = Union{$(T...)}
+        for (i, T) ∈ enumerate(tuple($(T...)))
+            FlatBuffers.unionorder(::Type{$name}, ::Type{T}) = i
+        end
     end)
 end
 

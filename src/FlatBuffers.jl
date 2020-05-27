@@ -20,6 +20,8 @@ const BitsType = Union{Bool,
 # this is part of the interface
 slotoffsets(::Type{T}) where {T} = [4 + 2(i - 1) for i ∈ 1:length(fieldtypes(T))]
 
+# this is useful for structs and tables
+default(::Type{T}) where {T} = T()
 default(::Type{T}) where {T<:BitsType} = zero(T)
 default(::Type{Union{T,Nothing}}) where {T} = nothing
 default(::Type{T}) where {T<:AbstractString} = T("")
@@ -31,9 +33,10 @@ default(::Type{T}, i::Integer) where {T} = default(T, fieldname(T, i))
 
 include("table.jl")
 include("struct.jl")
+include("union.jl")
 include("macros.jl")
 
 
-export @fbstruct, @fbtable
+export @fbstruct, @fbtable, @fbunion
 
 end
