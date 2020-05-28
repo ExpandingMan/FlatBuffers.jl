@@ -17,10 +17,17 @@ const BitsType = Union{Bool,
                        UInt8, UInt16, UInt32, UInt64,
                        Float32, Float64}
 
+abstract type BufferType end
+struct TableType <: BufferType end
+struct StructType <: BufferType end
+struct UnionType <: BufferType end
+struct NoType <: BufferType end
+
+BufferType(::Type{T}) where {T} = NoType()
+
 # this is part of the interface
 slotoffsets(::Type{T}) where {T} = [4 + 2(i - 1) for i ∈ 1:length(fieldtypes(T))]
 
-# this is useful for structs and tables
 default(::Type{T}) where {T} = T()
 default(::Type{T}) where {T<:BitsType} = zero(T)
 default(::Type{Union{T,Nothing}}) where {T} = nothing

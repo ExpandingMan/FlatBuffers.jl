@@ -31,7 +31,7 @@ end
     inventory::Vector{UInt8}
     color::Color = ColorBlue
     weapons::Vector{Weapon}
-    equipped::Equipment = nothing
+    @fbunion equipped::Equipment = nothing
     path::Vector{Vec3}
 end
 

@@ -9,6 +9,7 @@ function _parsename(head)
 end
 
 function _parsefield!(fields, defaults, ex)
+    # don't use splitarg here because we have to check
     if @capture(ex, x_::T_ = d_)
         push!(fields, (x, T))
         defaults[x] = d
@@ -20,6 +21,8 @@ function _parsefield!(fields, defaults, ex)
         push!(fields, (f, :Any))
         defaults[f] = d
         f
+    elseif @capture(ex, @fbunion x_)
+        _parsefield!(fields, defaults, fbunion(x))
     else
         ex
     end
@@ -46,15 +49,22 @@ end
 function _defaultconstructor(name, fields, defaults)
     defs = map(fields) do (ϕ, T)
         ϕq = Meta.quot(ϕ)
-        d = get(defaults, ϕ, :(FlatBuffers.default($T)))
-        :(get(kwargs, $ϕq, $d))
+        if occursin("__utype", string(ϕ))
+            ϕmain = Symbol(split(string(ϕ), "__utype")[1])
+            Tmain = filter(x -> x[1] == ϕmain, fields)[1][2]
+            d = get(defaults, ϕmain, :(FlatBuffers.default($Tmain)))
+            ϕmainq = Meta.quot(ϕmain)
+            main_arg = :(get(kwargs, $ϕmainq, $d))
+            :(FlatBuffers.unionorder(fieldtype($name, $ϕmainq), typeof($main_arg))-1)
+        else
+            d = get(defaults, ϕ, :(FlatBuffers.default($T)))
+            :(get(kwargs, $ϕq, $d))
+       end
     end
     :($name(;kwargs...) = $name($(defs...)))
 end
 
-# TODO need to properly handle unions in structs with union type field
-
-function typedec(block)
+function typedec(block, btype)
     if !(@capture(block, struct head_; body_ end) || @capture(block, mutable struct head_; body_ end))
         throw(ArgumentError("could not parse $block as a FlatBuffers struct"))
     end
@@ -71,10 +81,11 @@ function typedec(block)
         $defs
         # TODO the below doesn't work for subtypes yet
         $defconst
+        FlatBuffers.BufferType(::Type{$name}) = FlatBuffers.$btype()
     end)
 end
 
-
+# this method for type
 macro fbunion(name, types)
     if !@capture(types, {T__})
         throw(ArgumentError("@fbunion: types must be specified in `{ … }`"))
@@ -89,14 +100,30 @@ macro fbunion(name, types)
         for (i, T) ∈ enumerate(tuple($(T...)))
             FlatBuffers.unionorder(::Type{$name}, ::Type{T}) = i
         end
+        function FlatBuffers.uniontype(::Type{$name}, i::Integer)
+            for (j, T) ∈ enumerate(tuple($(T...)))
+                i == j && return T 
+            end
+            throw(ArgumentError("can't find corresponding type for $i in union $($name)"))
+        end
+        FlatBuffers.BufferType(::Type{$name}) = FlatBuffers.UnionType()
     end)
 end
 
+unionfieldname(x::Symbol) = Symbol(string(x,"__utype"))
 
-macro fbstruct(block)
-    typedec(block)
+function fbunion(ϕ::Union{Symbol,Expr})
+    x, T, _, d = splitarg(ϕ)
+    typeϕ = unionfieldname(x)
+    quote
+        $typeϕ::UInt8 = FlatBuffers.unionorder($T, typeof($d))-1
+        $ϕ
+    end
 end
 
-macro fbtable(block)
-    typedec(block)
-end
+# this method for field
+macro fbunion(ϕ); esc(fbunion(ϕ)); end
+
+macro fbstruct(block); typedec(block, :StructType); end
+
+macro fbtable(block); typedec(block, :TableType); end
