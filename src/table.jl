@@ -184,4 +184,10 @@ Base.propertynames(t::Table{T}) where {T} = fieldnames(T)
 
 # TODO this constructor is definitely really horribly slow
 (t::Table{T})() where {T} = T((field(t, i) for i ∈ 1:length(fieldtypes(T)))...)
-
+#function (t::Table{T})() where {T}
+#    m = T()  # this is definitely wasting its time on defaults
+#    for s ∈ fieldnames(T)
+#        setfield!(m, getproperty(t, s), s)
+#    end
+#    m
+#end

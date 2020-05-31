@@ -65,7 +65,11 @@ function _defaultconstructor(name, fields, defaults)
 end
 
 function typedec(block, btype)
-    if !(@capture(block, struct head_; body_ end) || @capture(block, mutable struct head_; body_ end))
+    if @capture(block, struct head_; body_ end)
+        mut = false
+    elseif @capture(block, mutable struct head_; body_ end)
+        mut = true
+    else
         throw(ArgumentError("could not parse $block as a FlatBuffers struct"))
     end
     name = _parsename(head)
@@ -74,10 +78,17 @@ function typedec(block, btype)
     newbody = prewalk(ex -> _parsefield!(fields, defaults, ex), body)
     defs = _defaultsdef(name, fields, defaults)
     defconst = _defaultconstructor(name, fields, defaults)
+    dec = if mut
+        :(mutable struct $head
+              $newbody
+        end)
+    else
+        :(struct $head
+              $newbody
+        end)
+    end
     esc(quote
-        struct $head
-            $newbody
-        end
+        $dec
         $defs
         # TODO the below doesn't work for subtypes yet
         $defconst
@@ -102,7 +113,7 @@ macro fbunion(name, types)
         end
         function FlatBuffers.uniontype(::Type{$name}, i::Integer)
             for (j, T) ∈ enumerate(tuple($(T...)))
-                i == j && return T 
+                i == j && return T
             end
             throw(ArgumentError("can't find corresponding type for $i in union $($name)"))
         end
