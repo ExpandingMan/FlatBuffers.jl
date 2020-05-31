@@ -8,13 +8,13 @@ end
 
 function vtable_offsets_count(::Type{T}) where {T}
     soffs = slotoffsets(T)
-    soffs, (soffs[end] - 4) ÷ 2
+    soffs, ((soffs[end] - 4) ÷ 2) + 1
 end
 
 function VTable{T}(buf::AbstractVector{UInt8}, start::Integer) where {T}
     vnbytes, tnbytes = reinterpret(Int16, @view buf[start:(start+3)])
     soffs, n = vtable_offsets_count(T)
-    δ = ((start+soffs[1]):(start+soffs[end]+1))[1:(2n)]
+    δ = ((start+soffs[1]):(start+soffs[end]+1))[1:min(2n, 2((vnbytes - 4) ÷ 2))]
     slots = reinterpret(Int16, @view buf[δ])
     VTable{T,typeof(slots)}(vnbytes, tnbytes, slots)
 end
@@ -132,9 +132,8 @@ function structvectorfield(::Type{<:AbstractVector{T}}, t::Table, i::Integer) wh
     v
 end
 
-# TODO finish this!
 function tablevectorfield(::Type{<:AbstractVector{T}}, t::Table, i::Integer) where {T}
-
+    [t() for t ∈ tables(T, t, i)]
 end
 
 structfield(::Type{U}, t::Table, i::Integer) where {U} = readstruct(U, buffer(t), fieldstart(t, i))
@@ -152,7 +151,7 @@ function concretefieldtype(t::Table{T}, i::Integer) where {T}
 end
 concretefieldtype(t::Table{T}, s::Symbol) where {T} = concretefieldtype(t, Base.fieldindex(T, s))
 
-function field(::Type{U}, t::Table{T}, i::Integer)::fieldtype(T, i) where {U,T}
+function field(::Type{U}, t::Table{T}, i::Integer) where {U,T}
     # NOTE: ordering here is not an accident, expensive and "less common" checks come later
     if U <: BitsType
         bitsfield(U, t, i)
@@ -183,6 +182,6 @@ Base.getproperty(t::Table, i::Integer) = field(t, i)
 Base.getproperty(t::Table, s::Symbol) = field(t, s)
 Base.propertynames(t::Table{T}) where {T} = fieldnames(T)
 
-# TODO think this construct is also probably ungodly slow
+# TODO this constructor is definitely really horribly slow
 (t::Table{T})() where {T} = T((field(t, i) for i ∈ 1:length(fieldtypes(T)))...)
 
