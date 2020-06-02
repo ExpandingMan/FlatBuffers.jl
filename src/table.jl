@@ -151,7 +151,7 @@ function concretefieldtype(t::Table{T}, i::Integer) where {T}
 end
 concretefieldtype(t::Table{T}, s::Symbol) where {T} = concretefieldtype(t, Base.fieldindex(T, s))
 
-function field(::Type{U}, t::Table{T}, i::Integer) where {U,T}
+function field(::Type{U}, t::Table{T}, i::Integer)::U where {U,T}
     # NOTE: ordering here is not an accident, expensive and "less common" checks come later
     if U <: BitsType
         bitsfield(U, t, i)
@@ -182,12 +182,10 @@ Base.getproperty(t::Table, i::Integer) = field(t, i)
 Base.getproperty(t::Table, s::Symbol) = field(t, s)
 Base.propertynames(t::Table{T}) where {T} = fieldnames(T)
 
-# TODO this constructor is definitely really horribly slow
-(t::Table{T})() where {T} = T((field(t, i) for i ∈ 1:length(fieldtypes(T)))...)
-#function (t::Table{T})() where {T}
-#    m = T()  # this is definitely wasting its time on defaults
-#    for s ∈ fieldnames(T)
-#        setfield!(m, getproperty(t, s), s)
-#    end
-#    m
-#end
+function (t::Table{T})() where {T}
+    m = T(undef)  # we defined this as an inner constructor
+    for s ∈ fieldnames(T)
+        setfield!(m, s, getproperty(t, s))
+    end
+    m
+end

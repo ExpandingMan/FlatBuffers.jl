@@ -64,6 +64,14 @@ function _defaultconstructor(name, fields, defaults)
     :($name(;kwargs...) = $name($(defs...)))
 end
 
+function _innerconstructors(name, fields)
+    args = (ϕ for (ϕ, _) ∈ fields)
+    quote
+        $name(::typeof(undef)) = new()
+        $name($(args...)) = new($(args...))
+    end
+end
+
 function typedec(block, btype)
     if @capture(block, struct head_; body_ end)
         mut = false
@@ -78,13 +86,18 @@ function typedec(block, btype)
     newbody = prewalk(ex -> _parsefield!(fields, defaults, ex), body)
     defs = _defaultsdef(name, fields, defaults)
     defconst = _defaultconstructor(name, fields, defaults)
+    inconstrs = _innerconstructors(name, fields)
     dec = if mut
         :(mutable struct $head
               $newbody
+
+              $inconstrs
         end)
     else
         :(struct $head
               $newbody
+
+              $inconstrs
         end)
     end
     esc(quote
