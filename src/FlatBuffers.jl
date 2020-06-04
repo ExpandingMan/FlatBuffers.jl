@@ -47,6 +47,7 @@ default(::Type{T}, i::Integer) where {T} = default(T, fieldname(T, i))
 include("table.jl")
 include("struct.jl")
 include("union.jl")
+include("write.jl")
 include("macros.jl")
 
 
